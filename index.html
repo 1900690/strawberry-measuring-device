@@ -73,13 +73,13 @@
             fontSize: 0.1,
           });
 
-          // ボタンを大きく、フォントを太く調整
-          const btnRow1 = menuGrid.addRow({ weight: 0.3 });
-          const sampleBtn = btnRow1.addCol({ weight: 0.9 }).addTextButton({
-            text: 'サンプル(GLB)で試す',
+          // ボタンをさらに大きくし、特に指定のボタンのフォントサイズを強調
+          const btnRow1 = menuGrid.addRow({ weight: 0.35 });
+          const sampleBtn = btnRow1.addCol({ weight: 0.95 }).addTextButton({
+            text: 'サンプルで試す',
             backgroundColor: '#ff6666',
             fontColor: '#ffffff',
-            fontSize: 0.07 // サイズアップ
+            fontSize: 0.3 // さらに大きく調整
           });
           sampleBtn.onTriggered = () => this.startSampleMode();
 
@@ -88,63 +88,11 @@
             text: '実際のイチゴを測定する',
             backgroundColor: '#66aa66',
             fontColor: '#ffffff',
-            fontSize: 0.07 // サイズアップ
+            fontSize: 0.3 
           });
           realBtn.onTriggered = () => this.startRealMode();
           
-          menuGrid.addRow({ weight: 0.15 });
-
-          // --- Result Panel ---
-          this.resultPanel = new xb.SpatialPanel({
-            width: 1.0,
-            height: 0.8,
-            backgroundColor: '#112233ee',
-          });
-          this.resultPanel.position.set(0, 1.5, -1.2);
-          this.resultPanel.visible = false;
-          this.add(this.resultPanel);
-
-          const resGrid = this.resultPanel.addGrid();
-          
-          // ヘッダー部分と「閉じる」ボタンの改善
-          const headerRow = resGrid.addRow({ weight: 0.25 });
-          this.modeLabel = headerRow.addCol({ weight: 0.7 }).addText({
-            text: 'モード',
-            fontColor: '#ffffff',
-            fontSize: 0.06,
-          });
-          
-          // アイコンではなくテキストボタンにして、押しやすく赤色で強調
-          const backBtn = headerRow.addCol({ weight: 0.3 }).addTextButton({
-            text: '戻る',
-            backgroundColor: '#aa4444',
-            fontColor: '#ffffff',
-            fontSize: 0.05
-          });
-          backBtn.onTriggered = () => this.showMenu();
-
-          const contentRow = resGrid.addRow({ weight: 0.65 });
-          const col = contentRow.addCol({ weight: 1 });
-
-          this.statusLabel = col.addRow({ weight: 0.2 }).addText({
-            text: '待機中...',
-            fontColor: '#aaaaaa',
-            fontSize: 0.05,
-          });
-
-          this.sizeLabel = col.addRow({ weight: 0.4 }).addText({
-            text: '大きさ: -- cm',
-            fontColor: '#aaffaa',
-            fontSize: 0.06,
-          });
-
-          this.weightLabel = col.addRow({ weight: 0.4 }).addText({
-            text: '予測重量: -- g',
-            fontColor: '#ffffaa',
-            fontSize: 0.07,
-          });
-
-          resGrid.addRow({ weight: 0.1 });
+          menuGrid.addRow({ weight: 0.1 });
         }
 
         showMenu() {
@@ -166,7 +114,7 @@
 
           try {
             const loader = new xb.ModelLoader();
-            // GitHub Pagesでは index.html と同じ場所にこのファイルを置く必要があります
+            // Releasesに置く予定のファイル名に更新
             const gltf = await loader.load({
               url: 'strawberry.glb',
               renderer: xb.core.renderer
@@ -188,7 +136,7 @@
             
             this.add(this.sampleTarget);
           } catch (e) {
-            this.statusLabel.setText('モデル読み込みエラー');
+            this.statusLabel.setText('モデル読み込みエラー (strawberry.glbを確認してください)');
             console.error(e);
           }
         }
