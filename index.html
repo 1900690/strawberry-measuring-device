@@ -57,86 +57,91 @@
         }
 
         createUI() {
-          // Main Menu Panel
+          // --- Main Menu Panel ---
           this.menuPanel = new xb.SpatialPanel({
-            width: 1.0,
-            height: 0.8,
+            width: 1.2,
+            height: 1.0,
             backgroundColor: '#1e1e1eaa',
           });
-          this.menuPanel.position.set(0, 1.5, -1.0);
+          this.menuPanel.position.set(0, 1.4, -1.0);
           this.add(this.menuPanel);
 
           const menuGrid = this.menuPanel.addGrid();
-          menuGrid.addRow({ weight: 0.3 }).addText({
+          menuGrid.addRow({ weight: 0.25 }).addText({
             text: '🍓 イチゴ測定システム',
             fontColor: '#ff6666',
-            fontSize: 0.08,
+            fontSize: 0.1,
           });
 
-          const btnRow1 = menuGrid.addRow({ weight: 0.25 });
-          const sampleBtn = btnRow1.addCol({ weight: 0.8 }).addTextButton({
+          // ボタンを大きく、フォントを太く調整
+          const btnRow1 = menuGrid.addRow({ weight: 0.3 });
+          const sampleBtn = btnRow1.addCol({ weight: 0.9 }).addTextButton({
             text: 'サンプル(GLB)で試す',
             backgroundColor: '#ff6666',
             fontColor: '#ffffff',
-            fontSize: 0.05
+            fontSize: 0.07 // サイズアップ
           });
           sampleBtn.onTriggered = () => this.startSampleMode();
 
-          const btnRow2 = menuGrid.addRow({ weight: 0.25 });
-          const realBtn = btnRow2.addCol({ weight: 0.8 }).addTextButton({
+          const btnRow2 = menuGrid.addRow({ weight: 0.3 });
+          const realBtn = btnRow2.addCol({ weight: 0.9 }).addTextButton({
             text: '実際のイチゴを測定する',
             backgroundColor: '#66aa66',
             fontColor: '#ffffff',
-            fontSize: 0.05
+            fontSize: 0.07 // サイズアップ
           });
           realBtn.onTriggered = () => this.startRealMode();
           
-          menuGrid.addRow({ weight: 0.2 });
+          menuGrid.addRow({ weight: 0.15 });
 
-          // Result Panel
+          // --- Result Panel ---
           this.resultPanel = new xb.SpatialPanel({
-            width: 0.8,
-            height: 0.6,
-            backgroundColor: '#112233cc',
+            width: 1.0,
+            height: 0.8,
+            backgroundColor: '#112233ee',
           });
-          this.resultPanel.position.set(0, 1.6, -1.2);
+          this.resultPanel.position.set(0, 1.5, -1.2);
           this.resultPanel.visible = false;
           this.add(this.resultPanel);
 
           const resGrid = this.resultPanel.addGrid();
           
-          const headerRow = resGrid.addRow({ weight: 0.2 });
-          this.modeLabel = headerRow.addCol({ weight: 0.8 }).addText({
+          // ヘッダー部分と「閉じる」ボタンの改善
+          const headerRow = resGrid.addRow({ weight: 0.25 });
+          this.modeLabel = headerRow.addCol({ weight: 0.7 }).addText({
             text: 'モード',
             fontColor: '#ffffff',
-            fontSize: 0.05,
+            fontSize: 0.06,
           });
-          const backBtn = headerRow.addCol({ weight: 0.2 }).addIconButton({
-            text: 'close',
-            fontSize: 0.3,
-            fontColor: '#ffaaaa'
+          
+          // アイコンではなくテキストボタンにして、押しやすく赤色で強調
+          const backBtn = headerRow.addCol({ weight: 0.3 }).addTextButton({
+            text: '戻る',
+            backgroundColor: '#aa4444',
+            fontColor: '#ffffff',
+            fontSize: 0.05
           });
           backBtn.onTriggered = () => this.showMenu();
 
-          const contentRow = resGrid.addRow({ weight: 0.7 });
+          const contentRow = resGrid.addRow({ weight: 0.65 });
           const col = contentRow.addCol({ weight: 1 });
 
           this.statusLabel = col.addRow({ weight: 0.2 }).addText({
             text: '待機中...',
             fontColor: '#aaaaaa',
-            fontSize: 0.04,
+            fontSize: 0.05,
           });
 
           this.sizeLabel = col.addRow({ weight: 0.4 }).addText({
             text: '大きさ: -- cm',
             fontColor: '#aaffaa',
-            fontSize: 0.05,
+            fontSize: 0.06,
           });
 
           this.weightLabel = col.addRow({ weight: 0.4 }).addText({
             text: '予測重量: -- g',
             fontColor: '#ffffaa',
-            fontSize: 0.06,
+            fontSize: 0.07,
           });
 
           resGrid.addRow({ weight: 0.1 });
@@ -157,12 +162,13 @@
           this.menuPanel.visible = false;
           this.resultPanel.visible = true;
           this.modeLabel.setText('🍓 サンプルモード');
-          this.statusLabel.setText('目の前のイチゴを手で掴んでください');
+          this.statusLabel.setText('モデルを掴んでください');
 
           try {
             const loader = new xb.ModelLoader();
+            // GitHub Pagesでは index.html と同じ場所にこのファイルを置く必要があります
             const gltf = await loader.load({
-              url: 'f5d669579e8d405e9734386e2789355a.glb',
+              url: 'strawberry.glb',
               renderer: xb.core.renderer
             });
 
@@ -178,11 +184,12 @@
 
             this.sampleTarget = new THREE.Group();
             this.sampleTarget.add(model);
-            this.sampleTarget.position.set(0, 1.3, -0.4);
+            this.sampleTarget.position.set(0, 1.3, -0.5);
             
             this.add(this.sampleTarget);
           } catch (e) {
-            this.statusLabel.setText('モデルの読み込みに失敗しました');
+            this.statusLabel.setText('モデル読み込みエラー');
+            console.error(e);
           }
         }
 
@@ -191,14 +198,14 @@
           this.menuPanel.visible = false;
           this.resultPanel.visible = true;
           this.modeLabel.setText('🍓 リアル測定モード');
-          this.statusLabel.setText('実際のイチゴを視野に入れてピンチしてください');
+          this.statusLabel.setText('イチゴを見つめてピンチ(決定)！');
         }
 
         async onSelectEnd(event) {
           if (this.mode !== 'real' || this.isDetecting) return;
           
           this.isDetecting = true;
-          this.statusLabel.setText('空間を分析中...');
+          this.statusLabel.setText('スキャン中...');
 
           try {
             const detectedObjects = await xb.world.objects.runDetection();
@@ -223,14 +230,14 @@
               const volume = (4 / 3) * Math.PI * (widthCm / 2) * (heightCm / 2) * (depthCm / 2);
               const predictedWeight = volume * 0.9;
 
-              this.sizeLabel.setText(`大きさ: ${widthCm.toFixed(1)} x ${heightCm.toFixed(1)} x ${depthCm.toFixed(1)} cm`);
+              this.sizeLabel.setText(`大きさ: ${widthCm.toFixed(1)}x${heightCm.toFixed(1)}x${depthCm.toFixed(1)}cm`);
               this.weightLabel.setText(`予測重量: ${predictedWeight.toFixed(1)} g`);
               this.statusLabel.setText('測定完了');
             } else {
-              this.statusLabel.setText('イチゴが見つかりませんでした');
+              this.statusLabel.setText('対象が見つかりません');
             }
           } catch (e) {
-            this.statusLabel.setText('分析エラーが発生しました');
+            this.statusLabel.setText('分析エラー');
           }
 
           this.isDetecting = false;
@@ -241,7 +248,7 @@
           
           const handPos = event.hand.position;
           const targetPos = this.sampleTarget.position;
-          if (handPos.distanceTo(targetPos) > 0.15) return;
+          if (handPos.distanceTo(targetPos) > 0.2) return;
 
           this.isGrabbing = true;
           this.sampleTarget.updateMatrixWorld(true);
@@ -283,13 +290,13 @@
 
         predictSampleProperties() {
           this.statusLabel.setText('分析完了！');
-          const widthCm = 4.5 + Math.random() * 1.0;
-          const heightCm = 5.0 + Math.random() * 1.5;
-          const depthCm = 4.5 + Math.random() * 1.0;
+          const widthCm = 4.0 + Math.random() * 2.0;
+          const heightCm = 5.0 + Math.random() * 2.0;
+          const depthCm = 4.0 + Math.random() * 2.0;
           const volume = (4 / 3) * Math.PI * (widthCm / 2) * (heightCm / 2) * (depthCm / 2);
           const weight = volume * 0.9;
 
-          this.sizeLabel.setText(`大きさ: ${widthCm.toFixed(1)} x ${heightCm.toFixed(1)} x ${depthCm.toFixed(1)} cm`);
+          this.sizeLabel.setText(`大きさ: ${widthCm.toFixed(1)}x${heightCm.toFixed(1)}x${depthCm.toFixed(1)}cm`);
           this.weightLabel.setText(`予測重量: ${weight.toFixed(1)} g`);
         }
       }
@@ -303,7 +310,6 @@
         options.hands.visualization = true;
         options.simulator.defaultMode = xb.SimulatorMode.POSE;
 
-        // Camera and Detection Setup
         options.enableCamera('environment');
         options.enableDepth();
         options.world.enableObjectDetection();
