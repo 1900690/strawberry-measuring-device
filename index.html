@@ -1,7 +1,7 @@
 <!doctype html>
-<html lang="ja">
+<html lang="en">
   <head>
-    <title>Strawberry Predictor Pro | XR Blocks</title>
+    <title>Strawberry Weigher | XR Blocks</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
     <link type="text/css" rel="stylesheet" href="https://xrblocks.github.io/css/xr.css" />
     <script>
@@ -20,252 +20,171 @@
           "lit": "https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js",
           "lit/": "https://esm.run/lit@3/",
           "xrblocks": "https://cdn.jsdelivr.net/npm/xrblocks@0.11.0/build/xrblocks.js",
-          "xrblocks/addons/": "https://cdn.jsdelivr.net/npm/xrblocks@0.11.0/build/addons/",
-          "@google/genai": "https://esm.run/@google/genai"
+          "xrblocks/addons/": "https://cdn.jsdelivr.net/npm/xrblocks@0.11.0/build/addons/"
         }
       }
     </script>
   </head>
-
   <body>
     <script type="module">
       import 'xrblocks/addons/simulator/SimulatorAddons.js';
       import * as THREE from 'three';
       import * as xb from 'xrblocks';
 
+      const LEFT_HAND_INDEX = 0;
+      const RIGHT_HAND_INDEX = 1;
+
       /**
-       * Strawberry Predictor Pro
-       * A VR application to predict the size and weight of a strawberry.
+       * 両手でつまんだ距離からイチゴの重さを予測するアプリ
+       * 左手: イチゴの幅 (Width)
+       * 右手: イチゴの高さ (Height)
        */
-      class StrawberryPredictorPro extends xb.Script {
+      class StrawberryWeigher extends xb.Script {
         init() {
-          this.mode = 'menu';
-          this.isGrabbing = false;
-          this._handToObject = null;
-          this.sampleTarget = null;
-          this.isDetecting = false;
+          // 光源の追加
+          this.add(new THREE.HemisphereLight(0xffffff, 0x666666, 3));
+          const light = new THREE.DirectionalLight(0xffffff, 1.5);
+          light.position.set(1, 4, 1);
+          this.add(light);
 
-          this.setupLighting();
-          this.createUI();
-        }
+          // イチゴの3Dモデル（プロシージャル生成）
+          this.strawberryGroup = new THREE.Group();
+          
+          // 実（赤い楕円体）
+          const berryGeo = new THREE.SphereGeometry(1, 32, 32);
+          const berryMat = new THREE.MeshStandardMaterial({ color: 0xe62222, roughness: 0.4 });
+          this.berry = new THREE.Mesh(berryGeo, berryMat);
+          this.strawberryGroup.add(this.berry);
 
-        setupLighting() {
-          this.add(new THREE.HemisphereLight(0xdddddd, 0x888888, 2.0));
-          const dirLight = new THREE.DirectionalLight(0xffffff, 2.5);
-          dirLight.position.set(1, 3, 2).normalize();
-          this.add(dirLight);
-        }
+          // ヘタ（緑の円錐）
+          const stemGeo = new THREE.ConeGeometry(0.6, 0.4, 8);
+          const stemMat = new THREE.MeshStandardMaterial({ color: 0x228822, roughness: 0.8 });
+          this.stem = new THREE.Mesh(stemGeo, stemMat);
+          this.stem.position.y = 1; // 球体の頂上に配置
+          this.strawberryGroup.add(this.stem);
 
-        createUI() {
-          // --- Main Menu Panel ---
-          this.menuPanel = new xb.SpatialPanel({
+          this.strawberryGroup.visible = false; // 初期状態は非表示
+          this.add(this.strawberryGroup);
+
+          // UIパネルの作成
+          this.panel = new xb.SpatialPanel({
             width: 1.2,
-            height: 1.0,
-            backgroundColor: '#1e1e1eaa',
+            height: 0.8,
+            backgroundColor: '#2b2b2baa',
           });
-          this.menuPanel.position.set(0, 1.4, -1.0);
-          this.add(this.menuPanel);
+          this.panel.position.set(0, xb.user.height, -xb.user.objectDistance);
+          this.add(this.panel);
 
-          const menuGrid = this.menuPanel.addGrid();
-          menuGrid.addRow({ weight: 0.25 }).addText({
-            text: '🍓 イチゴ測定システム',
-            fontColor: '#ff6666',
-            fontSize: 0.1,
+          const grid = this.panel.addGrid();
+          grid.addRow({ weight: 0.2 }).addText({
+            text: '🍓 イチゴ重量チェッカー',
+            fontSize: 0.08,
+            fontColor: '#ff6666'
           });
-
-          // ボタンをさらに大きくし、特に指定のボタンのフォントサイズを強調
-          const btnRow1 = menuGrid.addRow({ weight: 0.35 });
-          const sampleBtn = btnRow1.addCol({ weight: 0.95 }).addTextButton({
-            text: 'サンプルで試す',
-            backgroundColor: '#ff6666',
-            fontColor: '#ffffff',
-            fontSize: 0.3 // さらに大きく調整
-          });
-          sampleBtn.onTriggered = () => this.startSampleMode();
-
-          const btnRow2 = menuGrid.addRow({ weight: 0.3 });
-          const realBtn = btnRow2.addCol({ weight: 0.9 }).addTextButton({
-            text: '実際のイチゴを測定する',
-            backgroundColor: '#66aa66',
-            fontColor: '#ffffff',
-            fontSize: 0.3 
-          });
-          realBtn.onTriggered = () => this.startRealMode();
           
-          menuGrid.addRow({ weight: 0.1 });
-        }
-
-        showMenu() {
-          this.mode = 'menu';
-          this.menuPanel.visible = true;
-          this.resultPanel.visible = false;
-          if (this.sampleTarget) {
-            this.remove(this.sampleTarget);
-            this.sampleTarget = null;
-          }
-        }
-
-        async startSampleMode() {
-          this.mode = 'sample';
-          this.menuPanel.visible = false;
-          this.resultPanel.visible = true;
-          this.modeLabel.setText('🍓 サンプルモード');
-          this.statusLabel.setText('モデルを掴んでください');
-
-          try {
-            const loader = new xb.ModelLoader();
-            // Releasesに置く予定のファイル名に更新
-            const gltf = await loader.load({
-              url: 'strawberry.glb',
-              renderer: xb.core.renderer
-            });
-
-            const model = gltf.scene;
-            const box = new THREE.Box3().setFromObject(model);
-            const size = box.getSize(new THREE.Vector3());
-            const maxDim = Math.max(size.x, size.y, size.z);
-            const targetSize = 0.05; 
-            model.scale.setScalar(targetSize / maxDim);
-            
-            const center = box.getCenter(new THREE.Vector3());
-            model.position.sub(center.multiplyScalar(targetSize / maxDim));
-
-            this.sampleTarget = new THREE.Group();
-            this.sampleTarget.add(model);
-            this.sampleTarget.position.set(0, 1.3, -0.5);
-            
-            this.add(this.sampleTarget);
-          } catch (e) {
-            this.statusLabel.setText('モデル読み込みエラー (strawberry.glbを確認してください)');
-            console.error(e);
-          }
-        }
-
-        startRealMode() {
-          this.mode = 'real';
-          this.menuPanel.visible = false;
-          this.resultPanel.visible = true;
-          this.modeLabel.setText('🍓 リアル測定モード');
-          this.statusLabel.setText('イチゴを見つめてピンチ(決定)！');
-        }
-
-        async onSelectEnd(event) {
-          if (this.mode !== 'real' || this.isDetecting) return;
+          this.widthText = grid.addRow({ weight: 0.2 }).addText({
+            text: '左手（幅）: -- cm',
+            fontSize: 0.06,
+            fontColor: '#ffffff'
+          });
           
-          this.isDetecting = true;
-          this.statusLabel.setText('スキャン中...');
+          this.heightText = grid.addRow({ weight: 0.2 }).addText({
+            text: '右手（高さ）: -- cm',
+            fontSize: 0.06,
+            fontColor: '#ffffff'
+          });
+          
+          this.weightText = grid.addRow({ weight: 0.4 }).addText({
+            text: '両手でつまんで測定してください',
+            fontSize: 0.07,
+            fontColor: '#88ff88'
+          });
+        }
 
-          try {
-            const detectedObjects = await xb.world.objects.runDetection();
+        // 親指と人差し指の距離を計算するヘルパー
+        _getPinchDistance(joints) {
+          if (!joints) return 0;
+          const thumb = joints['thumb-tip'];
+          const index = joints['index-finger-tip'];
+          if (thumb && index && thumb.position && index.position) {
+            return thumb.position.distanceTo(index.position);
+          }
+          return 0;
+        }
 
-            if (detectedObjects && detectedObjects.length > 0) {
-              let targetObj = detectedObjects[0];
-              let minDistance = Infinity;
-              const cameraPos = xb.core.camera.position;
-              
-              detectedObjects.forEach(obj => {
-                const dist = obj.position.distanceTo(cameraPos);
-                if (dist < minDistance) {
-                  minDistance = dist;
-                  targetObj = obj;
-                }
-              });
+        update() {
+          const handsObj = xb.user.hands;
 
-              const widthCm = targetObj.scale.x * 100;
-              const heightCm = targetObj.scale.y * 100;
-              const depthCm = targetObj.scale.z * 100;
+          // 両手がトラッキングされているか確認
+          if (handsObj && handsObj.hands && handsObj.hands.length === 2) {
+            const leftJoints = handsObj.hands[LEFT_HAND_INDEX].joints;
+            const rightJoints = handsObj.hands[RIGHT_HAND_INDEX].joints;
 
-              const volume = (4 / 3) * Math.PI * (widthCm / 2) * (heightCm / 2) * (depthCm / 2);
-              const predictedWeight = volume * 0.9;
+            if (Object.keys(leftJoints).length > 0 && Object.keys(rightJoints).length > 0) {
+              // 幅（左手）と高さ（右手）をメートル単位で取得
+              const widthM = this._getPinchDistance(leftJoints);
+              const heightM = this._getPinchDistance(rightJoints);
 
-              this.sizeLabel.setText(`大きさ: ${widthCm.toFixed(1)}x${heightCm.toFixed(1)}x${depthCm.toFixed(1)}cm`);
-              this.weightLabel.setText(`予測重量: ${predictedWeight.toFixed(1)} g`);
-              this.statusLabel.setText('測定完了');
-            } else {
-              this.statusLabel.setText('対象が見つかりません');
+              // センチメートルに変換
+              const wCm = widthM * 100;
+              const hCm = heightM * 100;
+
+              // 両手が近すぎる（1cm未満）場合は測定しない
+              if (wCm > 1.0 && hCm > 1.0) {
+                // 楕円体の体積計算: V = 4/3 * π * (w/2) * (w/2) * (h/2) = (π/6) * w^2 * h
+                const volume = (Math.PI / 6) * Math.pow(wCm, 2) * hCm;
+                // イチゴの密度を約0.9g/cm³として重さを予測
+                const weight = volume * 0.9;
+
+                // UIの更新
+                this.widthText.setText(`左手（幅）: ${wCm.toFixed(1)} cm`);
+                this.heightText.setText(`右手（高さ）: ${hCm.toFixed(1)} cm`);
+                this.weightText.setText(`予測重量: ${weight.toFixed(1)} g`);
+
+                // イチゴモデルのサイズと位置を更新
+                this.strawberryGroup.visible = true;
+                
+                // 幅、高さ、奥行き(幅と同じと仮定)にスケールを合わせる
+                // BaseのSphereの直径が2なので、半分( /2 )のスケールを掛ける
+                this.strawberryGroup.scale.set(widthM / 2, heightM / 2, widthM / 2);
+
+                // イチゴを両手の中間地点に配置する
+                const leftPos = leftJoints['index-finger-tip'].position;
+                const rightPos = rightJoints['index-finger-tip'].position;
+                const midPoint = new THREE.Vector3().addVectors(leftPos, rightPos).multiplyScalar(0.5);
+                this.strawberryGroup.position.copy(midPoint);
+                return;
+              }
             }
-          } catch (e) {
-            this.statusLabel.setText('分析エラー');
           }
 
-          this.isDetecting = false;
-        }
-
-        onObjectGrabStart(event) {
-          if (this.mode !== 'sample' || this.isGrabbing || !this.sampleTarget) return;
-          
-          const handPos = event.hand.position;
-          const targetPos = this.sampleTarget.position;
-          if (handPos.distanceTo(targetPos) > 0.2) return;
-
-          this.isGrabbing = true;
-          this.sampleTarget.updateMatrixWorld(true);
-          event.hand.updateMatrixWorld(true);
-
-          const H0 = new THREE.Matrix4().copy(event.hand.matrixWorld);
-          const O0 = new THREE.Matrix4().copy(this.sampleTarget.matrixWorld);
-          this._handToObject = new THREE.Matrix4().copy(H0).invert().multiply(O0);
-
-          this.predictSampleProperties();
-        }
-
-        onObjectGrabbing(event) {
-          if (!this.isGrabbing || !this._handToObject || !this.sampleTarget) return;
-
-          event.hand.updateMatrixWorld(true);
-          const H = new THREE.Matrix4().copy(event.hand.matrixWorld);
-          const O = new THREE.Matrix4().multiplyMatrices(H, this._handToObject);
-          const parent = this.sampleTarget.parent;
-          const parentInv = parent
-            ? new THREE.Matrix4().copy(parent.matrixWorld).invert()
-            : new THREE.Matrix4().identity();
-
-          const Olocal = new THREE.Matrix4().multiplyMatrices(parentInv, O);
-          const pos = new THREE.Vector3();
-          const quat = new THREE.Quaternion();
-          const scl = new THREE.Vector3();
-          Olocal.decompose(pos, quat, scl);
-
-          this.sampleTarget.position.copy(pos);
-          this.sampleTarget.quaternion.copy(quat);
-        }
-
-        onObjectGrabEnd() {
-          if (!this.isGrabbing) return;
-          this.isGrabbing = false;
-          this._handToObject = null;
-        }
-
-        predictSampleProperties() {
-          this.statusLabel.setText('分析完了！');
-          const widthCm = 4.0 + Math.random() * 2.0;
-          const heightCm = 5.0 + Math.random() * 2.0;
-          const depthCm = 4.0 + Math.random() * 2.0;
-          const volume = (4 / 3) * Math.PI * (widthCm / 2) * (heightCm / 2) * (depthCm / 2);
-          const weight = volume * 0.9;
-
-          this.sizeLabel.setText(`大きさ: ${widthCm.toFixed(1)}x${heightCm.toFixed(1)}x${depthCm.toFixed(1)}cm`);
-          this.weightLabel.setText(`予測重量: ${weight.toFixed(1)} g`);
+          // 手が検出されない、またはつまんでいない時の状態
+          this.strawberryGroup.visible = false;
+          this.widthText.setText(`左手（幅）: -- cm`);
+          this.heightText.setText(`右手（高さ）: -- cm`);
+          this.weightText.setText(`両手でつまんで測定してください`);
         }
       }
 
-      document.addEventListener('DOMContentLoaded', function () {
+      function start() {
         const options = new xb.Options();
-        options.setAppTitle('Strawberry Predictor Pro');
+        options.setAppTitle('Strawberry Weigher');
         
-        options.enableUI();
+        // ハンドトラッキングの有効化
         options.enableHands();
+        options.hands.enabled = true;
         options.hands.visualization = true;
+        options.hands.visualizeJoints = true;
+        options.hands.visualizeMeshes = true;
+        
+        // シミュレーター用のモード設定（指を動かすため）
         options.simulator.defaultMode = xb.SimulatorMode.POSE;
 
-        options.enableCamera('environment');
-        options.enableDepth();
-        options.world.enableObjectDetection();
-        options.world.objects.showDebugVisualizations = true;
-
-        xb.add(new StrawberryPredictorPro());
+        xb.add(new StrawberryWeigher());
         xb.init(options);
-      });
+      }
+
+      document.addEventListener('DOMContentLoaded', start);
     </script>
   </body>
 </html>
