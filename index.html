@@ -156,10 +156,10 @@
         options.enableUI();
         options.enableHands();
         
-        // ハンドトラッキングとメッシュ/ジョイントの視覚化を有効にする
+        // ハンドトラッキングを有効にしつつ、手やジョイントの白いボックスは非表示にする
         options.hands.enabled = true;
-        options.hands.visualization = true;
-        options.hands.visualizeJoints = true;
+        options.hands.visualization = false;
+        options.hands.visualizeJoints = false;
         
         xb.add(new StrawberryWeigher());
         await xb.init(options);
